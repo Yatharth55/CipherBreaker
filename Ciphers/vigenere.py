@@ -1,6 +1,3 @@
-def alphtonum(character):
-    
-
 def vigenere(plaintext,key):
     keysize = len(key)
     encrypted = ""
@@ -14,4 +11,4 @@ def vigenere(plaintext,key):
             encrypted += (en+int("a"))
     return encrypted
 
-print(vigenere("hello","hi"))
+# print(vigenere("hello","hi"))
