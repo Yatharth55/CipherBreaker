@@ -4,5 +4,9 @@ def frequency(et):
     for i in et:
         if i.isalpha():
             freq[i] += 1
-    return freq
+    ls = []
+    a = ord('A')
+    for i in range(26):
+        ls.append(freq[chr(a+i)])
+    return ls
 

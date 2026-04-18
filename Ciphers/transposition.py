@@ -1,23 +1,30 @@
 def transposition(plaintext, key):
     keylen = len(key)
     ptlen = len(plaintext)
-    dic = {i: [] for i in range(keylen)}#initiailsing
+
+    # create columns
+    columns = {i: [] for i in range(keylen)}
+
+    # fill row-wise
     counter = 0
     for i in range(ptlen):
-        dic[counter].append(plaintext[i])
+        columns[counter].append(plaintext[i])
         counter += 1
-
         if counter >= keylen:
             counter = 0
-    if counter < keylen:#padding
+
+    # padding 
+    if counter < keylen:
         while counter != keylen:
-            dic[counter].append(" ")
+            columns[counter].append(" ")
             counter += 1
-    # print(dic)
-    # Sort key with index (VERY IMPORTANT)
+
+    # sort key order
     key_order = sorted(range(keylen), key=lambda x: key[x])
-    cipher = ""
+
+    # read column-wise
+    cipher_list = []
     for i in key_order:
-        for ch in dic[i]:
-            cipher += ch
-    return cipher
+        cipher_list.extend(columns[i])
+
+    return "".join(cipher_list)

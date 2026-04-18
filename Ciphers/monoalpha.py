@@ -1,4 +1,4 @@
-def monoaplha(plaintext,substitution):
+def monoalpha(plaintext,substitution):
     cipher = ""
     plaintext = plaintext.upper()
     for i in plaintext:

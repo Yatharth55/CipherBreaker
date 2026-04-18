@@ -1,9 +1,5 @@
 import math
 from collections import defaultdict
-git 
-def clean_text(text):
-    return "".join([c.upper() for c in text if c.isalpha()])
-
 
 def kasiski_test(text):
     text = clean_text(text)

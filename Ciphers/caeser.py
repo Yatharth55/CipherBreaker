@@ -1,4 +1,4 @@
-def caeser(plaintext,shift):
+def caesar(plaintext,shift):
     plaintext = plaintext.upper()
     cipher = ""
     for i in plaintext:
@@ -10,4 +10,3 @@ def caeser(plaintext,shift):
             cipher+=i
 
     return cipher
-print(caeser("hello3world",1))

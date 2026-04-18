@@ -1,14 +1,15 @@
-def vigenere(plaintext,key):
+def vigenere(plaintext, key):
+    result = ""
     keysize = len(key)
-    encrypted = ""
-    j = 0
+
     for i in range(len(plaintext)):
-        if plaintext[i] == " ":
-            continue
-        else:
-            en = (int(plaintext[i]) - "a" + int(key[j%keysize])-"a")%26
-            j = j+1
-            encrypted += (en+int("a"))
-    return encrypted
+        p = ord(plaintext[i]) - ord('A')
+        k = ord(key[i % keysize]) - ord('A')
+
+        c = (p + k) % 26
+
+        result += chr(c + ord('A'))
+
+    return result
 
 # print(vigenere("hello","hi"))
