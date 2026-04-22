@@ -1,7 +1,6 @@
 import math 
 
 def ngram(text,n):
-    text = clean_text(text)
     fre = {}
     totalngram = len(text)-n+1
     for i in range(0,totalngram):

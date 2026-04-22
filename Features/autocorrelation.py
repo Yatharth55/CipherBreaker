@@ -3,8 +3,7 @@
 
 #we will be using auto-correlation of 1-10
 
-def auto_correlation(text):
-    clean = clean_text(text)
+def auto_correlation(clean,shifts):
     length = len(clean)
     dic = {i:0 for i in range(1,11)}
     for i in range(2,shifts+1):

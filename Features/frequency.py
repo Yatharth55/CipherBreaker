@@ -1,5 +1,6 @@
 def frequency(et):
     et = et.upper()
+    total_letters = len(et)
     freq = {i:0 for i in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"}
     for i in et:
         if i.isalpha():
@@ -7,6 +8,6 @@ def frequency(et):
     ls = []
     a = ord('A')
     for i in range(26):
-        ls.append(freq[chr(a+i)])
+        ls.append(freq[chr(a+i)]/total_letters)
     return ls
 

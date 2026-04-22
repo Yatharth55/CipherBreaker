@@ -2,7 +2,6 @@ import math
 from collections import defaultdict
 
 def kasiski_test(text):
-    text = clean_text(text)
     n = len(text)
 
     # Step 1: collect trigram positions

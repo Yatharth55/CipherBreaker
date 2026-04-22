@@ -1,8 +1,7 @@
 
 def chi_sqaured(text):
-
+    c_e = text
     alphabets = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    c_e = clean_text(text)
     total_letters = len(c_e)
     if total_letters == 0:
         return 0
