@@ -12,23 +12,17 @@ def extract_features(ciphertext):
 
     feat = []
 
-    # 1. frequency (26 values)
     feat.extend(frequency(ciphertext))
 
-    # 2. IC
     feat.append(ioc(ciphertext))
 
-    # 3. entropy (2 values)
     feat.append(shanon_entropy(ciphertext, 2))
     feat.append(shanon_entropy(ciphertext, 3))
 
-    # 4. chi-square
     feat.append(chi_sqaured(ciphertext))
 
-    # 5. autocorrelation (10 values)
     feat.extend(auto_correlation(ciphertext, 10))
 
-    # 6. kasiski (1 value)
     k = kasiski_test(ciphertext)
     feat.append(k if k is not None else 0)
 
