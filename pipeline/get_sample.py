@@ -9,13 +9,13 @@ from Ciphers.vigenere import vigenere
 from clean_text.clean_text import clean_text
 
 
-def get_sample():
+def get_sample(plaintext):
     encryption = ["caesar", "monoalpha", "transposition", "vigenere"]
 
     cipher = random.choice(encryption)
 
-    # plaintext
-    plaintext = "HI there my name is yatharth and i am from jalalabad and i study in nit jalandhar"
+    #plaintext
+    #plaintext = "HI there my name is yatharth and i am from jalalabad and i study in nit jalandhar"
     plaintext = clean_text(plaintext)
 
     # generate key + choose function
@@ -42,7 +42,7 @@ def get_sample():
     # encrypt
     ciphertext = encrypt_func(plaintext, key)
 
-    return ciphertext, cipher, key
+    return ciphertext, cipher, key , plaintext
 
 
 # test

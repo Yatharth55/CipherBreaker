@@ -1,28 +1,40 @@
 import csv
+import random
 from pipeline.get_sample import get_sample
+from pipeline.extract_features import extract_features
+
+def load_text(file_path):
+    with open(file_path, "r", encoding="utf-8") as f:
+        return f.read()
 
 
-def generate_dataset(num_samples=1000, filename="dataset.csv"):
-    data = []
+def get_random_chunk(text = load_text("Data/book.txt"), min_len=150, max_len=200):
+    length = random.randint(min_len, max_len)
 
-    # Generate data
-    for i in range(num_samples):
-        features, label = get_sample()
-        data.append(features + [label])
+    if len(text) < length:
+        return text
 
-        if i % 100 == 0:
-            print(f"{i} samples generated...")
+    start = random.randint(0, len(text) - length)
+    return text[start:start + length]
 
-    # Write to CSV
+def generate_dataset(num_samples=1000, filename="Data/dataset.csv"):
     with open(filename, "w", newline="") as f:
         writer = csv.writer(f)
 
-        # Optional header
-        num_features = len(data[0]) - 1
-        header = [f"f{i}" for i in range(num_features)] + ["label"]
+        # header
+        header = [f"f{i}" for i in range(41)] + ["label"]
         writer.writerow(header)
 
-        writer.writerows(data)
+        for i in range(num_samples):
+            ciphertext, label, key = get_sample(get_random_chunk())
+
+            # extract features here
+            features = extract_features(ciphertext)
+
+            writer.writerow(features + [label])
+
+            if i % 100 == 0:
+                print(f"{i} samples generated...")
 
     print(f"\nDataset saved to {filename}")
 
