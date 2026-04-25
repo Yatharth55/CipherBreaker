@@ -16,6 +16,7 @@ DATASET_PATH = BASE_DIR / "Data" / "dataset.csv"
 MODELS_DIR = BASE_DIR / "Models"
 MODEL_PATH = MODELS_DIR / "cipher_classifier.joblib"
 METRICS_PATH = MODELS_DIR / "training_metrics.json"
+LABEL_COLUMN = "cipher_type"
 
 
 def load_dataset(dataset_path):
@@ -31,10 +32,10 @@ def load_dataset(dataset_path):
         if not fieldnames:
             raise ValueError(f"Dataset file is empty: {dataset_path}")
 
-        if "label" not in fieldnames:
-            raise ValueError("Dataset must contain a 'label' column.")
+        if LABEL_COLUMN not in fieldnames:
+            raise ValueError(f"Dataset must contain a '{LABEL_COLUMN}' column.")
 
-        feature_names = [name for name in fieldnames if name != "label"]
+        feature_names = [name for name in fieldnames if name.startswith("f")]
         if not feature_names:
             raise ValueError("Dataset must contain at least one feature column.")
 
@@ -42,7 +43,7 @@ def load_dataset(dataset_path):
         labels = []
 
         for row_number, row in enumerate(reader, start=2):
-            label = (row.get("label") or "").strip()
+            label = (row.get(LABEL_COLUMN) or "").strip()
             if not label:
                 raise ValueError(f"Missing label value on row {row_number}.")
 

@@ -67,15 +67,17 @@ def generate_dataset(
 
         for i in range(num_samples):
             plaintext = get_random_chunk(source_text, min_len=min_len, max_len=max_len)
-            ciphertext, label, _, _ = get_sample(plaintext)
+            ciphertext, cipher_type, _, plaintext = get_sample(plaintext)
             features = extract_features(ciphertext)
 
             if feature_count is None:
                 feature_count = len(features)
-                header = [f"f{i}" for i in range(feature_count)] + ["label"]
+                header = ["ciphertext", "plaintext", "cipher_type"] + [
+                    f"f{i}" for i in range(feature_count)
+                ]
                 writer.writerow(header)
 
-            writer.writerow(features + [label])
+            writer.writerow([ciphertext, plaintext, cipher_type] + features)
 
             if (i + 1) % 100 == 0 or i == num_samples - 1:
                 print(f"{i + 1}/{num_samples} samples generated...")
@@ -85,4 +87,4 @@ def generate_dataset(
 
 
 if __name__ == "__main__":
-    generate_dataset(num_samples=5000)
+    generate_dataset(num_samples=5000000)
