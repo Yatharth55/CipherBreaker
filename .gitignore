@@ -1,2 +1,5 @@
-__pycache__
-dataset.csv
+__pycache__/
+.DS_Store
+Data/dataset.csv
+Models/
+*.joblib
