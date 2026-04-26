@@ -87,4 +87,4 @@ def generate_dataset(
 
 
 if __name__ == "__main__":
-    generate_dataset(num_samples=100000)
+    generate_dataset(num_samples=50000)
