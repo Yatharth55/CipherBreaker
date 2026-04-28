@@ -1,4 +1,4 @@
-def transposition(plaintext, key):
+def transposition(plaintext = "shivam", key = "LEMON"):
     keylen = len(key)
     ptlen = len(plaintext)
 
@@ -28,3 +28,6 @@ def transposition(plaintext, key):
         cipher_list.extend(columns[i])
 
     return "".join(cipher_list)
+
+if __name__ == "__main__":
+    print(transposition())

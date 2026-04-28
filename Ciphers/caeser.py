@@ -1,4 +1,4 @@
-def caesar(plaintext,shift):
+def caesar(plaintext= "yatharth",shift = 24):
     plaintext = plaintext.upper()
     cipher = ""
     for i in plaintext:
@@ -10,3 +10,7 @@ def caesar(plaintext,shift):
             cipher+=i
 
     return cipher
+
+if __name__ == "__main__":
+    cipher = caesar()
+    print(cipher)

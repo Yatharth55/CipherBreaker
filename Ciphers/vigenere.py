@@ -1,15 +1,18 @@
-def vigenere(plaintext, key):
+def vigenere(plaintext = "yatharth pujani", key="jjjj"):
     result = ""
     keysize = len(key)
 
     for i in range(len(plaintext)):
-        p = ord(plaintext[i]) - ord('A')
-        k = ord(key[i % keysize]) - ord('A')
+        if plaintext[i].isalpha():
+            p = ord(plaintext[i]) - ord('A')
+            k = ord(key[i % keysize]) - ord('A')
 
-        c = (p + k) % 26
+            c = (p + k) % 26
 
-        result += chr(c + ord('A'))
-
+            result += chr(c + ord('A'))
+        else:
+            result += plaintext[i]
     return result
 
-# print(vigenere("hello","hi"))
+if __name__ == "__main__":
+    print(vigenere())

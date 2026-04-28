@@ -4,12 +4,46 @@ import json
 from collections import Counter
 from pathlib import Path
 
+import numpy as np
 from joblib import dump
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
 
+# ---------------- GPU DETECTION ---------------- #
+
+USE_CUML = False
+USE_XGB_GPU = False
+
+try:
+    from cuml.ensemble import RandomForestClassifier as cuRF
+    from cuml.preprocessing import LabelEncoder as cuLabelEncoder
+    import cupy as cp
+
+    USE_CUML = True
+    print("🚀 Using GPU via cuML")
+
+except Exception:
+    try:
+        import xgboost as xgb
+        from xgboost import XGBClassifier
+
+        # Check GPU support
+        try:
+            _ = xgb.DeviceQuantileDMatrix
+            USE_XGB_GPU = True
+            print("🚀 Using GPU via XGBoost")
+        except Exception:
+            print("⚠️ XGBoost GPU not available")
+
+    except ImportError:
+        print("⚠️ No GPU libraries found, using CPU")
+
+if not USE_CUML and not USE_XGB_GPU:
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.preprocessing import LabelEncoder
+    print("⚠️ Using CPU (sklearn)")
+
+# ---------------- PATHS ---------------- #
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 DATASET_PATH = BASE_DIR / "Data" / "dataset.csv"
@@ -19,65 +53,42 @@ METRICS_PATH = MODELS_DIR / "training_metrics.json"
 LABEL_COLUMN = "cipher_type"
 
 
+# ---------------- DATA LOADING ---------------- #
+
 def load_dataset(dataset_path):
     dataset_path = Path(dataset_path)
-
-    if not dataset_path.exists():
-        raise FileNotFoundError(f"Dataset file not found: {dataset_path}")
 
     with dataset_path.open("r", newline="", encoding="utf-8") as csv_file:
         reader = csv.DictReader(csv_file)
         fieldnames = reader.fieldnames or []
 
-        if not fieldnames:
-            raise ValueError(f"Dataset file is empty: {dataset_path}")
-
         if LABEL_COLUMN not in fieldnames:
-            raise ValueError(f"Dataset must contain a '{LABEL_COLUMN}' column.")
+            raise ValueError(f"Missing '{LABEL_COLUMN}' column")
 
         feature_names = [name for name in fieldnames if name.startswith("f")]
-        if not feature_names:
-            raise ValueError("Dataset must contain at least one feature column.")
 
-        features = []
-        labels = []
+        features, labels = [], []
 
-        for row_number, row in enumerate(reader, start=2):
-            label = (row.get(LABEL_COLUMN) or "").strip()
-            if not label:
-                raise ValueError(f"Missing label value on row {row_number}.")
+        for row in reader:
+            features.append([float(row[name]) for name in feature_names])
+            labels.append(row[LABEL_COLUMN].strip())
 
-            try:
-                feature_row = [float(row[name]) for name in feature_names]
-            except (TypeError, ValueError) as exc:
-                raise ValueError(
-                    f"Invalid numeric feature value on row {row_number}."
-                ) from exc
-
-            features.append(feature_row)
-            labels.append(label)
-
-    if not features:
-        raise ValueError(f"Dataset contains no samples: {dataset_path}")
-
-    return features, labels, feature_names
+    return np.array(features, dtype=np.float32), np.array(labels), feature_names
 
 
 def can_stratify(labels, test_size):
-    label_counts = Counter(labels)
-
-    if len(label_counts) < 2:
+    counts = Counter(labels)
+    if len(counts) < 2 or min(counts.values()) < 2:
         return False
 
-    if min(label_counts.values()) < 2:
-        return False
+    total = len(labels)
+    test_n = int(total * test_size)
+    train_n = total - test_n
 
-    total_samples = len(labels)
-    test_samples = max(1, int(round(total_samples * test_size)))
-    train_samples = total_samples - test_samples
+    return test_n >= len(counts) and train_n >= len(counts)
 
-    return test_samples >= len(label_counts) and train_samples >= len(label_counts)
 
+# ---------------- TRAINING ---------------- #
 
 def train_model(
     dataset_path=DATASET_PATH,
@@ -89,107 +100,135 @@ def train_model(
 ):
     features, labels, feature_names = load_dataset(dataset_path)
 
-    label_encoder = LabelEncoder()
-    encoded_labels = label_encoder.fit_transform(labels)
+    # -------- cuML (BEST) -------- #
+    if USE_CUML:
+        label_encoder = cuLabelEncoder()
+        encoded_labels = label_encoder.fit_transform(labels)
 
-    stratify_labels = encoded_labels if can_stratify(labels, test_size) else None
+        stratify = encoded_labels if can_stratify(labels, test_size) else None
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        features,
-        encoded_labels,
-        test_size=test_size,
-        random_state=random_state,
-        stratify=stratify_labels,
-    )
+        X_train, X_test, y_train, y_test = train_test_split(
+            features, encoded_labels, test_size=test_size,
+            random_state=random_state, stratify=stratify
+        )
 
-    model = RandomForestClassifier(
-        n_estimators=n_estimators,
-        random_state=random_state,
-        n_jobs=-1,
-    )
-    model.fit(X_train, y_train)
+        # Move to GPU
+        X_train = cp.asarray(X_train)
+        X_test = cp.asarray(X_test)
+        y_train = cp.asarray(y_train)
+        y_test = cp.asarray(y_test)
 
-    predictions = model.predict(X_test)
-    decoded_truth = label_encoder.inverse_transform(y_test)
+        model = cuRF(
+            n_estimators=n_estimators,
+            max_depth=16,
+            n_streams=4,
+            random_state=random_state,
+        )
+
+        model.fit(X_train, y_train)
+
+        predictions = model.predict(X_test).get()
+        y_test_cpu = y_test.get()
+
+    # -------- XGBOOST GPU -------- #
+    elif USE_XGB_GPU:
+        from sklearn.preprocessing import LabelEncoder
+
+        label_encoder = LabelEncoder()
+        encoded_labels = label_encoder.fit_transform(labels)
+
+        stratify = encoded_labels if can_stratify(labels, test_size) else None
+
+        X_train, X_test, y_train, y_test = train_test_split(
+            features, encoded_labels, test_size=test_size,
+            random_state=random_state, stratify=stratify
+        )
+
+        model = XGBClassifier(
+            tree_method="gpu_hist",
+            predictor="gpu_predictor",
+            n_estimators=n_estimators,
+            max_depth=8,
+            learning_rate=0.1,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            random_state=random_state,
+        )
+
+        model.fit(X_train, y_train)
+
+        predictions = model.predict(X_test)
+        y_test_cpu = y_test
+
+    # -------- CPU FALLBACK -------- #
+    else:
+        from sklearn.preprocessing import LabelEncoder
+
+        label_encoder = LabelEncoder()
+        encoded_labels = label_encoder.fit_transform(labels)
+
+        stratify = encoded_labels if can_stratify(labels, test_size) else None
+
+        X_train, X_test, y_train, y_test = train_test_split(
+            features, encoded_labels, test_size=test_size,
+            random_state=random_state, stratify=stratify
+        )
+
+        model = RandomForestClassifier(
+            n_estimators=n_estimators,
+            n_jobs=-1,
+            random_state=random_state,
+        )
+
+        model.fit(X_train, y_train)
+
+        predictions = model.predict(X_test)
+        y_test_cpu = y_test
+
+    # -------- METRICS -------- #
+
+    decoded_truth = label_encoder.inverse_transform(y_test_cpu)
     decoded_predictions = label_encoder.inverse_transform(predictions)
 
     metrics = {
-        "dataset_path": str(Path(dataset_path).resolve()),
         "samples": len(features),
         "feature_count": len(feature_names),
-        "labels": list(label_encoder.classes_),
-        "train_samples": len(X_train),
-        "test_samples": len(X_test),
-        "accuracy": accuracy_score(y_test, predictions),
+        "accuracy": accuracy_score(y_test_cpu, predictions),
         "classification_report": classification_report(
-            decoded_truth,
-            decoded_predictions,
-            output_dict=True,
-            zero_division=0,
+            decoded_truth, decoded_predictions,
+            output_dict=True, zero_division=0
         ),
     }
 
-    model_path = Path(model_path)
-    metrics_path = Path(metrics_path)
-    model_path.parent.mkdir(parents=True, exist_ok=True)
-    metrics_path.parent.mkdir(parents=True, exist_ok=True)
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
-    artifact = {
+    dump({
         "model": model,
         "label_encoder": label_encoder,
         "feature_names": feature_names,
         "metrics": metrics,
-    }
+    }, model_path)
 
-    dump(artifact, model_path)
-    metrics_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+    Path(metrics_path).write_text(json.dumps(metrics, indent=2))
 
     return metrics
 
 
+# ---------------- CLI ---------------- #
+
 def build_parser():
-    parser = argparse.ArgumentParser(
-        description="Train a cipher classifier from Data/dataset.csv."
-    )
-    parser.add_argument(
-        "--dataset",
-        default=str(DATASET_PATH),
-        help="Path to the dataset CSV file.",
-    )
-    parser.add_argument(
-        "--model-out",
-        default=str(MODEL_PATH),
-        help="Where to save the trained model artifact.",
-    )
-    parser.add_argument(
-        "--metrics-out",
-        default=str(METRICS_PATH),
-        help="Where to save the training metrics JSON.",
-    )
-    parser.add_argument(
-        "--test-size",
-        type=float,
-        default=0.2,
-        help="Fraction of samples reserved for evaluation.",
-    )
-    parser.add_argument(
-        "--random-state",
-        type=int,
-        default=42,
-        help="Random seed used for the train/test split and model.",
-    )
-    parser.add_argument(
-        "--n-estimators",
-        type=int,
-        default=300,
-        help="Number of trees used by the random forest classifier.",
-    )
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset", default=str(DATASET_PATH))
+    parser.add_argument("--model-out", default=str(MODEL_PATH))
+    parser.add_argument("--metrics-out", default=str(METRICS_PATH))
+    parser.add_argument("--test-size", type=float, default=0.2)
+    parser.add_argument("--random-state", type=int, default=42)
+    parser.add_argument("--n-estimators", type=int, default=300)
     return parser
 
 
 if __name__ == "__main__":
-    parser = build_parser()
-    args = parser.parse_args()
+    args = build_parser().parse_args()
 
     metrics = train_model(
         dataset_path=args.dataset,
@@ -200,7 +239,4 @@ if __name__ == "__main__":
         n_estimators=args.n_estimators,
     )
 
-    print(
-        f"Training complete. Accuracy: {metrics['accuracy']:.4f}. "
-        f"Model saved to {args.model_out}"
-    )
+    print(f"✅ Accuracy: {metrics['accuracy']:.4f}")

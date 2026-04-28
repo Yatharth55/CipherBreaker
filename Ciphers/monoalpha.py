@@ -1,4 +1,4 @@
-def monoalpha(plaintext,substitution):
+def monoalpha(plaintext = "yatharth",substitution = "QWERTYUIOPASDFGHJKLZXCVBNM"):
     cipher = ""
     plaintext = plaintext.upper()
     for i in plaintext:
@@ -9,3 +9,6 @@ def monoalpha(plaintext,substitution):
     return cipher
 
 # print(monoaplha("abzy","QWERTYUIOPASDFGHJKLZXCVBNM"))
+
+if __name__ == "__main__":
+    print(monoalpha())
