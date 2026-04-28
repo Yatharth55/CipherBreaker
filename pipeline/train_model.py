@@ -8,40 +8,42 @@ import numpy as np
 from joblib import dump
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
 
 # ---------------- GPU DETECTION ---------------- #
 
-USE_CUML = False
 USE_XGB_GPU = False
 
 try:
-    from cuml.ensemble import RandomForestClassifier as cuRF
-    from cuml.preprocessing import LabelEncoder as cuLabelEncoder
-    import cupy as cp
+    import xgboost as xgb
+    from xgboost import XGBClassifier
 
-    USE_CUML = True
-    print("🚀 Using GPU via cuML")
-
-except Exception:
-    try:
-        import xgboost as xgb
-        from xgboost import XGBClassifier
-
-        # Check GPU support
+    def is_xgb_gpu_available():
         try:
-            _ = xgb.DeviceQuantileDMatrix
-            USE_XGB_GPU = True
-            print("🚀 Using GPU via XGBoost")
-        except Exception:
-            print("⚠️ XGBoost GPU not available")
+            X = np.random.rand(100, 5)
+            y = np.random.randint(0, 2, 100)
 
-    except ImportError:
-        print("⚠️ No GPU libraries found, using CPU")
+            model = XGBClassifier(
+                tree_method="gpu_hist",
+                predictor="gpu_predictor",
+                n_estimators=1,
+                verbosity=0
+            )
+            model.fit(X, y)
+            return True
+        except Exception as e:
+            print("⚠️ XGBoost GPU test failed:", e)
+            return False
 
-if not USE_CUML and not USE_XGB_GPU:
-    from sklearn.ensemble import RandomForestClassifier
-    from sklearn.preprocessing import LabelEncoder
-    print("⚠️ Using CPU (sklearn)")
+    USE_XGB_GPU = is_xgb_gpu_available()
+
+    if USE_XGB_GPU:
+        print("🚀 Using GPU via XGBoost")
+    else:
+        print("⚠️ XGBoost GPU not available, using CPU")
+
+except ImportError:
+    print("⚠️ XGBoost not installed, using CPU")
 
 # ---------------- PATHS ---------------- #
 
@@ -66,6 +68,11 @@ def load_dataset(dataset_path):
             raise ValueError(f"Missing '{LABEL_COLUMN}' column")
 
         feature_names = [name for name in fieldnames if name.startswith("f")]
+
+        if not feature_names:
+            raise ValueError(
+                f"No feature columns found! Columns: {fieldnames}"
+            )
 
         features, labels = [], []
 
@@ -100,50 +107,21 @@ def train_model(
 ):
     features, labels, feature_names = load_dataset(dataset_path)
 
-    # -------- cuML (BEST) -------- #
-    if USE_CUML:
-        label_encoder = cuLabelEncoder()
-        encoded_labels = label_encoder.fit_transform(labels)
+    label_encoder = LabelEncoder()
+    encoded_labels = label_encoder.fit_transform(labels)
 
-        stratify = encoded_labels if can_stratify(labels, test_size) else None
+    stratify = encoded_labels if can_stratify(labels, test_size) else None
 
-        X_train, X_test, y_train, y_test = train_test_split(
-            features, encoded_labels, test_size=test_size,
-            random_state=random_state, stratify=stratify
-        )
+    X_train, X_test, y_train, y_test = train_test_split(
+        features,
+        encoded_labels,
+        test_size=test_size,
+        random_state=random_state,
+        stratify=stratify,
+    )
 
-        # Move to GPU
-        X_train = cp.asarray(X_train)
-        X_test = cp.asarray(X_test)
-        y_train = cp.asarray(y_train)
-        y_test = cp.asarray(y_test)
-
-        model = cuRF(
-            n_estimators=n_estimators,
-            max_depth=16,
-            n_streams=4,
-            random_state=random_state,
-        )
-
-        model.fit(X_train, y_train)
-
-        predictions = model.predict(X_test).get()
-        y_test_cpu = y_test.get()
-
-    # -------- XGBOOST GPU -------- #
-    elif USE_XGB_GPU:
-        from sklearn.preprocessing import LabelEncoder
-
-        label_encoder = LabelEncoder()
-        encoded_labels = label_encoder.fit_transform(labels)
-
-        stratify = encoded_labels if can_stratify(labels, test_size) else None
-
-        X_train, X_test, y_train, y_test = train_test_split(
-            features, encoded_labels, test_size=test_size,
-            random_state=random_state, stratify=stratify
-        )
-
+    # -------- GPU (XGBoost) -------- #
+    if USE_XGB_GPU:
         model = XGBClassifier(
             tree_method="gpu_hist",
             predictor="gpu_predictor",
@@ -153,26 +131,12 @@ def train_model(
             subsample=0.8,
             colsample_bytree=0.8,
             random_state=random_state,
+            verbosity=1
         )
 
-        model.fit(X_train, y_train)
-
-        predictions = model.predict(X_test)
-        y_test_cpu = y_test
-
-    # -------- CPU FALLBACK -------- #
+    # -------- CPU fallback -------- #
     else:
-        from sklearn.preprocessing import LabelEncoder
-
-        label_encoder = LabelEncoder()
-        encoded_labels = label_encoder.fit_transform(labels)
-
-        stratify = encoded_labels if can_stratify(labels, test_size) else None
-
-        X_train, X_test, y_train, y_test = train_test_split(
-            features, encoded_labels, test_size=test_size,
-            random_state=random_state, stratify=stratify
-        )
+        from sklearn.ensemble import RandomForestClassifier
 
         model = RandomForestClassifier(
             n_estimators=n_estimators,
@@ -180,24 +144,26 @@ def train_model(
             random_state=random_state,
         )
 
-        model.fit(X_train, y_train)
+    # -------- TRAIN -------- #
+    model.fit(X_train, y_train)
 
-        predictions = model.predict(X_test)
-        y_test_cpu = y_test
+    # -------- PREDICT -------- #
+    predictions = model.predict(X_test)
 
-    # -------- METRICS -------- #
-
-    decoded_truth = label_encoder.inverse_transform(y_test_cpu)
+    decoded_truth = label_encoder.inverse_transform(y_test)
     decoded_predictions = label_encoder.inverse_transform(predictions)
 
     metrics = {
         "samples": len(features),
         "feature_count": len(feature_names),
-        "accuracy": accuracy_score(y_test_cpu, predictions),
+        "accuracy": accuracy_score(y_test, predictions),
         "classification_report": classification_report(
-            decoded_truth, decoded_predictions,
-            output_dict=True, zero_division=0
+            decoded_truth,
+            decoded_predictions,
+            output_dict=True,
+            zero_division=0,
         ),
+        "device": "GPU" if USE_XGB_GPU else "CPU"
     }
 
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
@@ -239,4 +205,4 @@ if __name__ == "__main__":
         n_estimators=args.n_estimators,
     )
 
-    print(f"✅ Accuracy: {metrics['accuracy']:.4f}")
+    print(f"✅ Accuracy: {metrics['accuracy']:.4f} ({metrics['device']})")
