@@ -6,6 +6,7 @@ from Features.entropy import ngram
 from Features.frequency import frequency
 from Features.indexofcoincidence import ioc
 from Features.kasiski import kasiski_test
+import numpy as np
 
 def extract_features(ciphertext):
     ciphertext = c_t(ciphertext)

@@ -1,4 +1,4 @@
-def caesar(plaintext= "yatharth",shift = 24):
+def caesar(plaintext= "yatharth pujani",shift = 24):
     plaintext = plaintext.upper()
     cipher = ""
     for i in plaintext:

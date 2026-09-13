@@ -2,7 +2,7 @@ from clean_text.clean_text import clean_text
 
 from Features.chi_squared import chi_sqaured
 
-def caeser_recovery(ciphertext="Uxvvldq Dpedvvdgru-dw-Odujh Dqguhb Ehorxvry, khdg ri lwv ghohjdwlrq wr wkh frqihuhqfh, remhfwhg wr vlqjolqj rxw Ludq dqg hasuhvvhg krsh wkdw wkh fulwlflvp dqg “srolwlflvdwlrq” vwduwlqj rq gdb rqh zloo qrw diihfw wkh rxwfrph, zklfk kh hasuhvvhg krsh zloo eh vxffhvvixo"):
+def caesar_recovery(ciphertext="WYRFYPRF"):
     ls = []
     for shift in range(26):
         ciphertext = ciphertext.upper()
@@ -15,8 +15,22 @@ def caeser_recovery(ciphertext="Uxvvldq Dpedvvdgru-dw-Odujh Dqguhb Ehorxvry, khd
             else:
                 plain+=i
         ls.append(plain)
-
-    return ls
+    chi_ls = []
+    mini =1000 
+    mni = 10000
+    for i in ls:
+        # ioc_ls.append(ioc(clean_text(i)))
+        chi_ls.append(chi_sqaured(clean_text(i)))
+        # print(i)
+        # print()
+    for i in range(len(ls)):
+        if chi_ls[i]<mini:
+            mini = chi_ls[i]
+            mni = i
+    # print(ioc_ls)
+    # print(ls)
+    # print(chi_ls)
+    return ls[mni]
 
 if __name__ == "__main__":
     #print(caeser_recovery())
@@ -29,8 +43,8 @@ if __name__ == "__main__":
     for i in ls:
         # ioc_ls.append(ioc(clean_text(i)))
         chi_ls.append(chi_sqaured(clean_text(i)))
-        print(i)
-        print()
+        # print(i)
+        # print()
     for i in range(len(ls)):
         if chi_ls[i]<mini:
             mini = chi_ls[i]

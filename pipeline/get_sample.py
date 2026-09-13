@@ -9,7 +9,7 @@ from Ciphers.vigenere import vigenere
 from clean_text.clean_text import clean_text
 
 
-def get_sample(plaintext):
+def get_sample(plaintext = "HI there my name is yatharth and i am from jalalabad and i study in nit jalandhar"):
     encryption = ["caesar", "monoalpha", "transposition", "vigenere"]
 
     cipher = random.choice(encryption)
@@ -47,7 +47,8 @@ def get_sample(plaintext):
 
 # test
 if __name__ == "__main__":
-    ct, label, key = get_sample()
+    ct, label, key, pt = get_sample()
+    print("Plaintext: ",pt)
     print("Cipher:", label)
     print("Key:", key)
     print("Ciphertext:", ct)
