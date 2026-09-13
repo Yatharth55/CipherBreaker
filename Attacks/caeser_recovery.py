@@ -35,7 +35,7 @@ def caesar_recovery(ciphertext="WYRFYPRF"):
 if __name__ == "__main__":
     #print(caeser_recovery())
 
-    ls = caeser_recovery()
+    ls = caesar_recovery()
     # ioc_ls = []
     chi_ls = []
     mini =1000 
